@@ -63,7 +63,7 @@ _USAGE = """
 Syntax: cpplint.py [--verbose=#] [--output=vs7] [--filter=-x,+y,...]
                    [--counting=total|toplevel|detailed] [--root=subdir]
                    [--linelength=digits] [--headers=x,y,...]
-                   [--quiet]
+                   [--quiet] [--return=return value]
         <file> [file] ...
 
   The style guidelines this tries to follow are those in
@@ -152,6 +152,13 @@ Syntax: cpplint.py [--verbose=#] [--output=vs7] [--filter=-x,+y,...]
       Examples:
         --headers=hpp,hxx
         --headers=hpp
+        
+     return=return value
+       The return value of the script is forced to given value for
+       preventing make files to stop too early.
+       
+       Examples:
+        --return=0
 
     cpplint.py supports per-directory configurations specified in CPPLINT.cfg
     files. CPPLINT.cfg file can contain a number of key=value pairs.
@@ -579,6 +586,10 @@ def ProcessHppHeadersOption(val):
 
 def IsHeaderExtension(file_extension):
   return file_extension in _hpp_headers
+
+# The forces return value of the script to given value if defined.
+# This is set by --return flag.
+_return = None
 
 def ParseNolintSuppressions(filename, raw_line, linenum, error):
   """Updates the global list of line error-suppressions.
@@ -1904,6 +1915,8 @@ def CheckForHeaderGuard(filename, clean_lines, error):
   for i in raw_lines:
     if Search(r'//\s*NOLINT\(build/header_guard\)', i):
       return
+    if Search(r'^#pragma once', i):
+      return
 
   cppvar = GetHeaderGuardCPPVariable(filename)
 
@@ -2976,7 +2989,7 @@ def CheckSpacingForFunctionCall(filename, clean_lines, linenum, error):
   # Note that we assume the contents of [] to be short enough that
   # they'll never need to wrap.
   if (  # Ignore control structures.
-      not Search(r'\b(if|for|while|switch|return|new|delete|catch|sizeof)\b',
+      not Search(r'\b(if|for|foreach|while|switch|return|new|delete|catch|sizeof)\b',
                  fncall) and
       # Ignore pointers/references to functions.
       not Search(r' \([^)]+\)\([^)]*(\)|,$)', fncall) and
@@ -3163,7 +3176,8 @@ def CheckComment(line, filename, linenum, next_line_start, error):
       # should be a space somewhere between it and the // unless
       # it's a /// or //! Doxygen comment.
       if (Match(r'//[^ ]*\w', comment) and
-          not Match(r'(///|//\!)(\s+|$)', comment)):
+          not Match(r'(///|//\!)(\s+|$)', comment) and
+          not Match(r'(//lint)', comment)):
         error(filename, linenum, 'whitespace/comments', 4,
               'Should have a space between // and comment')
 
@@ -3423,7 +3437,7 @@ def CheckParenthesisSpacing(filename, clean_lines, linenum, error):
   line = clean_lines.elided[linenum]
 
   # No spaces after an if, while, switch, or for
-  match = Search(r' (if\(|for\(|while\(|switch\()', line)
+  match = Search(r' (if\(|for\(|foreach\(|while\(|switch\()', line)
   if match:
     error(filename, linenum, 'whitespace/parens', 5,
           'Missing space before ( in %s' % match.group(1))
@@ -4349,7 +4363,7 @@ def CheckStyle(filename, clean_lines, linenum, file_extension, nesting_state,
   # if(match($0, " <<")) complain = 0;
   # if(match(prev, " +for \\(")) complain = 0;
   # if(prevodd && match(prevprev, " +for \\(")) complain = 0;
-  scope_or_label_pattern = r'\s*\w+\s*:\s*\\?$'
+  scope_or_label_pattern = r'\s*\w+\s*\w*:\s*\\?$'
   classinfo = nesting_state.InnermostClass()
   initial_spaces = 0
   cleansed_line = clean_lines.elided[linenum]
@@ -6161,7 +6175,8 @@ def ParseArguments(args):
                                                  'linelength=',
                                                  'extensions=',
                                                  'headers=',
-                                                 'quiet'])
+                                                 'quiet',
+                                                 'return='])
   except getopt.GetoptError:
     PrintUsage('Invalid arguments.')
 
@@ -6207,6 +6222,12 @@ def ParseArguments(args):
           PrintUsage('Extensions must be comma separated list.')
     elif opt == '--headers':
       ProcessHppHeadersOption(val)
+    elif opt == '--return':
+      global _return
+      try:
+          _return = int(val)
+      except ValueError:
+          PrintUsage('Return value shall be integer.')
 
   if not filenames:
     PrintUsage('No files were specified.')
@@ -6237,6 +6258,8 @@ def main():
   if not _cpplint_state.quiet or _cpplint_state.error_count > 0:
     _cpplint_state.PrintErrorCounts()
 
+  if _return <> None:
+    sys.exit(_return)
   sys.exit(_cpplint_state.error_count > 0)
 
 

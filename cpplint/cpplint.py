@@ -742,6 +742,7 @@ class _IncludeState(object):
 
   def __init__(self):
     self.include_list = [[]]
+    self.include_list_third_party = [[]]
     self.ResetSection('')
 
   def FindHeader(self, header):
@@ -2009,6 +2010,14 @@ def CheckHeaderFileIncluded(filename, include_state, error):
   for section_list in include_state.include_list:
     for f in section_list:
       if headername in f[0] or f[0] in headername:
+        return
+      if not first_include:
+        first_include = f[1]
+
+  headerbasename = FileInfo(headerfile).BaseName() + FileInfo(headerfile).Extension()
+  for section_list in include_state.include_list_third_party:
+    for f in section_list:
+      if headerbasename in f[0] or f[0] in headerbasename:
         return
       if not first_include:
         first_include = f[1]
@@ -4608,6 +4617,8 @@ def CheckIncludeLine(filename, clean_lines, linenum, include_state, error):
         error(filename, linenum, 'build/include_alpha', 4,
               'Include "%s" not in alphabetical order' % include)
       include_state.SetLastHeader(canonical_include)
+    else:
+      include_state.include_list_third_party[-1].append((include, linenum))
 
 
 
@@ -5399,9 +5410,7 @@ _HEADERS_CONTAINING_TEMPLATES = (
     )
 
 _HEADERS_MAYBE_TEMPLATES = (
-    ('<algorithm>', ('copy', 'max', 'min', 'min_element', 'sort',
-                     'transform',
-                    )),
+    ('<algorithm>', ('copy', 'max', 'min', 'min_element', 'sort',)),
     ('<utility>', ('forward', 'make_pair', 'move', 'swap')),
     )
 
